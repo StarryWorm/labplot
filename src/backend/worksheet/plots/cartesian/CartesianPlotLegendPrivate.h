@@ -62,6 +62,7 @@ public:
 private:
 	QList<Plot*> m_plots; // list containing all visible plots/curves
 	QStringList m_names;
+	QStringList m_customOrder; // For storing custom ordering of legend entries
 
 	bool translatePainter(QPainter*, int& row, int& col, int height);
 };

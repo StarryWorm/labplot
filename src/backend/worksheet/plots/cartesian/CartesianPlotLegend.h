@@ -57,6 +57,12 @@ public:
 	BASIC_D_ACCESSOR_DECL(qreal, layoutVerticalSpacing, LayoutVerticalSpacing)
 	BASIC_D_ACCESSOR_DECL(int, layoutColumnCount, LayoutColumnCount)
 
+	// Methods for legend item ordering
+	QStringList legendItemNames() const;
+	void swapLegendItems(int index1, int index2);
+	void setCustomItemOrder(const QStringList& customOrder);
+	QStringList customItemOrder() const;
+
 	void retransform() override;
 	void setZValue(qreal) override;
 	void handleResize(double horizontalRatio, double verticalRatio, bool pageResize) override;
@@ -85,6 +91,7 @@ Q_SIGNALS:
 	void layoutVerticalSpacingChanged(float);
 	void layoutHorizontalSpacingChanged(float);
 	void layoutColumnCountChanged(int);
+	void retransformed();
 };
 
 #endif

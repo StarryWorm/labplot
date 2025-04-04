@@ -13,12 +13,14 @@
 
 #include "backend/worksheet/plots/cartesian/CartesianPlotLegend.h"
 #include "frontend/dockwidgets/BaseDock.h"
-#include "ui_cartesianplotlegenddock.h"
+#include "ui_cartesianplotlegenddock.ui"
 
 class BackgroundWidget;
 class LabelWidget;
 class LineWidget;
 class KConfig;
+class QListWidget;
+class QPushButton;
 
 class CartesianPlotLegendDock : public BaseDock {
 	Q_OBJECT
@@ -39,7 +41,14 @@ private:
 	LabelWidget* labelWidget{nullptr};
 	QList<CartesianPlotLegend*> m_legendList;
 	CartesianPlotLegend* m_legend{nullptr};
-
+	
+	// For ordering tab
+	QListWidget* m_lwLegendItems{nullptr};
+	QPushButton* m_btnMoveUp{nullptr};
+	QPushButton* m_btnMoveDown{nullptr};
+	bool m_isUpdatingLegendItems{false};
+	
+	void updateLegendItemsList();
 	void load();
 	void loadConfig(KConfig&);
 
@@ -72,6 +81,12 @@ private Q_SLOTS:
 	void layoutHorizontalSpacingChanged(double);
 	void layoutVerticalSpacingChanged(double);
 	void layoutColumnCountChanged(int);
+	
+	// "Ordering"-tab
+	void moveItemUp();
+	void moveItemDown();
+	void legendItemOrderChanged();
+	void legendItemsChanged();
 
 	// SLOTs for changes triggered in CartesianPlotLegend
 	void legendLabelFontChanged(QFont&);

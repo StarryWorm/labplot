@@ -113,6 +113,29 @@ CartesianPlotLegendDock::CartesianPlotLegendDock(QWidget* parent)
 	connect(ui.sbLayoutVerticalSpacing, QOverload<double>::of(&NumberSpinBox::valueChanged), this, &CartesianPlotLegendDock::layoutVerticalSpacingChanged);
 	connect(ui.sbLayoutColumnCount, QOverload<int>::of(&QSpinBox::valueChanged), this, &CartesianPlotLegendDock::layoutColumnCountChanged);
 
+	// Set up the "Ordering" tab
+    m_lwLegendItems = ui.tabOrdering->findChild<QListWidget*>("lwLegendItems");
+    m_btnMoveUp = ui.tabOrdering->findChild<QPushButton*>("btnMoveUp");
+    m_btnMoveDown = ui.tabOrdering->findChild<QPushButton*>("btnMoveDown");
+
+    // Connect signals and slots for the Ordering tab
+    connect(m_btnMoveUp, &QPushButton::clicked, this, &CartesianPlotLegendDock::moveItemUp);
+    connect(m_btnMoveDown, &QPushButton::clicked, this, &CartesianPlotLegendDock::moveItemDown);
+    connect(m_lwLegendItems, &QListWidget::itemSelectionChanged, this, [this]() {
+        // Enable/disable buttons based on selection
+        if (!m_lwLegendItems->selectedItems().isEmpty()) {
+            int row = m_lwLegendItems->row(m_lwLegendItems->selectedItems().first());
+            m_btnMoveUp->setEnabled(row > 0);
+            m_btnMoveDown->setEnabled(row < m_lwLegendItems->count() - 1);
+        } else {
+            m_btnMoveUp->setEnabled(false);
+            m_btnMoveDown->setEnabled(false);
+        }
+    });
+    
+    // Handle item ordering changed through drag-and-drop
+    connect(m_lwLegendItems->model(), &QAbstractItemModel::rowsMoved, this, &CartesianPlotLegendDock::legendItemOrderChanged);
+
 	// template handler
 	auto* frame = new QFrame(this);
 	auto* layout = new QHBoxLayout(frame);
@@ -128,42 +151,48 @@ CartesianPlotLegendDock::CartesianPlotLegendDock(QWidget* parent)
 }
 
 void CartesianPlotLegendDock::setLegends(QList<CartesianPlotLegend*> list) {
-	CONDITIONAL_LOCK_RETURN;
-	m_legendList = list;
-	m_legend = list.first();
-	setAspects(list);
+    CONDITIONAL_LOCK_RETURN;
+    m_legendList = list;
+    m_legend = list.first();
+    setAspects(list);
 
-	// show the properties of the first curve
-	this->load();
+    // show the properties of the first curve
+    this->load();
 
-	// on the very first start the column count shown in UI is 1.
-	// if the this count for m_legend is also 1 then the slot layoutColumnCountChanged is not called
-	// and we need to disable the "order" widgets here.
-	ui.lOrder->setVisible(m_legend->layoutColumnCount() != 1);
-	ui.cbOrder->setVisible(m_legend->layoutColumnCount() != 1);
+    // on the very first start the column count shown in UI is 1.
+    // if the this count for m_legend is also 1 then the slot layoutColumnCountChanged is not called
+    // and we need to disable the "order" widgets here.
+    ui.lOrder->setVisible(m_legend->layoutColumnCount() != 1);
+    ui.cbOrder->setVisible(m_legend->layoutColumnCount() != 1);
 
-	// SIGNALs/SLOTs
-	// General
-	connect(m_legend, &CartesianPlotLegend::labelFontChanged, this, &CartesianPlotLegendDock::legendLabelFontChanged);
-	connect(m_legend, &CartesianPlotLegend::usePlotColorChanged, this, &CartesianPlotLegendDock::legendUsePlotColorChanged);
-	connect(m_legend, &CartesianPlotLegend::labelColorChanged, this, &CartesianPlotLegendDock::legendLabelColorChanged);
-	connect(m_legend, &CartesianPlotLegend::labelColumnMajorChanged, this, &CartesianPlotLegendDock::legendLabelOrderChanged);
-	connect(m_legend, &CartesianPlotLegend::positionChanged, this, &CartesianPlotLegendDock::legendPositionChanged);
-	connect(m_legend, &CartesianPlotLegend::positionLogicalChanged, this, &CartesianPlotLegendDock::legendPositionLogicalChanged);
-	connect(m_legend, &CartesianPlotLegend::horizontalAlignmentChanged, this, &CartesianPlotLegendDock::legendHorizontalAlignmentChanged);
-	connect(m_legend, &CartesianPlotLegend::verticalAlignmentChanged, this, &CartesianPlotLegendDock::legendVerticalAlignmentChanged);
-	connect(m_legend, &CartesianPlotLegend::rotationAngleChanged, this, &CartesianPlotLegendDock::legendRotationAngleChanged);
-	connect(m_legend, &CartesianPlotLegend::lineSymbolWidthChanged, this, &CartesianPlotLegendDock::legendLineSymbolWidthChanged);
-	connect(m_legend, &CartesianPlotLegend::lockChanged, this, &CartesianPlotLegendDock::legendLockChanged);
+    // SIGNALs/SLOTs
+    // General
+    connect(m_legend, &CartesianPlotLegend::labelFontChanged, this, &CartesianPlotLegendDock::legendLabelFontChanged);
+    connect(m_legend, &CartesianPlotLegend::usePlotColorChanged, this, &CartesianPlotLegendDock::legendUsePlotColorChanged);
+    connect(m_legend, &CartesianPlotLegend::labelColorChanged, this, &CartesianPlotLegendDock::legendLabelColorChanged);
+    connect(m_legend, &CartesianPlotLegend::labelColumnMajorChanged, this, &CartesianPlotLegendDock::legendLabelOrderChanged);
+    connect(m_legend, &CartesianPlotLegend::positionChanged, this, &CartesianPlotLegendDock::legendPositionChanged);
+    connect(m_legend, &CartesianPlotLegend::positionLogicalChanged, this, &CartesianPlotLegendDock::legendPositionLogicalChanged);
+    connect(m_legend, &CartesianPlotLegend::horizontalAlignmentChanged, this, &CartesianPlotLegendDock::legendHorizontalAlignmentChanged);
+    connect(m_legend, &CartesianPlotLegend::verticalAlignmentChanged, this, &CartesianPlotLegendDock::legendVerticalAlignmentChanged);
+    connect(m_legend, &CartesianPlotLegend::rotationAngleChanged, this, &CartesianPlotLegendDock::legendRotationAngleChanged);
+    connect(m_legend, &CartesianPlotLegend::lineSymbolWidthChanged, this, &CartesianPlotLegendDock::legendLineSymbolWidthChanged);
+    connect(m_legend, &CartesianPlotLegend::lockChanged, this, &CartesianPlotLegendDock::legendLockChanged);
 
-	// layout
-	connect(m_legend, &CartesianPlotLegend::layoutTopMarginChanged, this, &CartesianPlotLegendDock::legendLayoutTopMarginChanged);
-	connect(m_legend, &CartesianPlotLegend::layoutBottomMarginChanged, this, &CartesianPlotLegendDock::legendLayoutBottomMarginChanged);
-	connect(m_legend, &CartesianPlotLegend::layoutLeftMarginChanged, this, &CartesianPlotLegendDock::legendLayoutLeftMarginChanged);
-	connect(m_legend, &CartesianPlotLegend::layoutRightMarginChanged, this, &CartesianPlotLegendDock::legendLayoutRightMarginChanged);
-	connect(m_legend, &CartesianPlotLegend::layoutVerticalSpacingChanged, this, &CartesianPlotLegendDock::legendLayoutVerticalSpacingChanged);
-	connect(m_legend, &CartesianPlotLegend::layoutHorizontalSpacingChanged, this, &CartesianPlotLegendDock::legendLayoutHorizontalSpacingChanged);
-	connect(m_legend, &CartesianPlotLegend::layoutColumnCountChanged, this, &CartesianPlotLegendDock::legendLayoutColumnCountChanged);
+    // layout
+    connect(m_legend, &CartesianPlotLegend::layoutTopMarginChanged, this, &CartesianPlotLegendDock::legendLayoutTopMarginChanged);
+    connect(m_legend, &CartesianPlotLegend::layoutBottomMarginChanged, this, &CartesianPlotLegendDock::legendLayoutBottomMarginChanged);
+    connect(m_legend, &CartesianPlotLegend::layoutLeftMarginChanged, this, &CartesianPlotLegendDock::legendLayoutLeftMarginChanged);
+    connect(m_legend, &CartesianPlotLegend::layoutRightMarginChanged, this, &CartesianPlotLegendDock::legendLayoutRightMarginChanged);
+    connect(m_legend, &CartesianPlotLegend::layoutVerticalSpacingChanged, this, &CartesianPlotLegendDock::legendLayoutVerticalSpacingChanged);
+    connect(m_legend, &CartesianPlotLegend::layoutHorizontalSpacingChanged, this, &CartesianPlotLegendDock::legendLayoutHorizontalSpacingChanged);
+    connect(m_legend, &CartesianPlotLegend::layoutColumnCountChanged, this, &CartesianPlotLegendDock::legendLayoutColumnCountChanged);
+    
+    // Connect for legend item changes
+    connect(m_legend, &CartesianPlotLegend::retransformed, this, &CartesianPlotLegendDock::legendItemsChanged);
+    
+    // Update the legend items list
+    updateLegendItemsList();
 }
 
 void CartesianPlotLegendDock::activateTitleTab() const {
@@ -557,6 +586,93 @@ void CartesianPlotLegendDock::layoutColumnCountChanged(int count) {
 		legend->setLayoutColumnCount(count);
 }
 
+// Ordering
+void CartesianPlotLegendDock::updateLegendItemsList() {
+    if (!m_legend || m_isUpdatingLegendItems)
+        return;
+        
+    m_isUpdatingLegendItems = true;
+    
+    // Save the current selection
+    int selectedRow = -1;
+    if (!m_lwLegendItems->selectedItems().isEmpty()) {
+        selectedRow = m_lwLegendItems->row(m_lwLegendItems->selectedItems().first());
+    }
+    
+    // Clear the list
+    m_lwLegendItems->clear();
+    
+    // Get the current legend items
+    QStringList itemNames = m_legend->legendItemNames();
+    
+    // Populate the list
+    for (const QString& name : itemNames) {
+        m_lwLegendItems->addItem(name);
+    }
+    
+    // Restore the selection
+    if (selectedRow >= 0 && selectedRow < m_lwLegendItems->count()) {
+        m_lwLegendItems->setCurrentRow(selectedRow);
+    }
+    
+    // Update button states
+    if (selectedRow >= 0) {
+        m_btnMoveUp->setEnabled(selectedRow > 0);
+        m_btnMoveDown->setEnabled(selectedRow < m_lwLegendItems->count() - 1);
+    } else {
+        m_btnMoveUp->setEnabled(false);
+        m_btnMoveDown->setEnabled(false);
+    }
+    
+    m_isUpdatingLegendItems = false;
+}
+
+void CartesianPlotLegendDock::moveItemUp() {
+    if (!m_legend || m_lwLegendItems->selectedItems().isEmpty())
+        return;
+        
+    int row = m_lwLegendItems->row(m_lwLegendItems->selectedItems().first());
+    if (row > 0) {
+        CONDITIONAL_LOCK_RETURN;
+        
+        m_legend->swapLegendItems(row, row - 1);
+        m_lwLegendItems->setCurrentRow(row - 1);
+    }
+}
+
+void CartesianPlotLegendDock::moveItemDown() {
+    if (!m_legend || m_lwLegendItems->selectedItems().isEmpty())
+        return;
+        
+    int row = m_lwLegendItems->row(m_lwLegendItems->selectedItems().first());
+    if (row < m_lwLegendItems->count() - 1) {
+        CONDITIONAL_LOCK_RETURN;
+        
+        m_legend->swapLegendItems(row, row + 1);
+        m_lwLegendItems->setCurrentRow(row + 1);
+    }
+}
+
+void CartesianPlotLegendDock::legendItemOrderChanged() {
+    if (!m_legend || m_isUpdatingLegendItems)
+        return;
+        
+    CONDITIONAL_LOCK_RETURN;
+    
+    // Get the new order from the list widget
+    QStringList newOrder;
+    for (int i = 0; i < m_lwLegendItems->count(); i++) {
+        newOrder << m_lwLegendItems->item(i)->text();
+    }
+    
+    // Set the new order in the legend
+    m_legend->setCustomItemOrder(newOrder);
+}
+
+void CartesianPlotLegendDock::legendItemsChanged() {
+    updateLegendItemsList();
+}
+
 //*************************************************************
 //**** SLOTs for changes triggered in CartesianPlotLegend *****
 //*************************************************************
@@ -792,6 +908,9 @@ void CartesianPlotLegendDock::load() {
 	ui.sbLayoutVerticalSpacing->setValue(Worksheet::convertFromSceneUnits(roundSceneValue(m_legend->layoutVerticalSpacing(), m_units), m_worksheetUnit));
 
 	ui.sbLayoutColumnCount->setValue(m_legend->layoutColumnCount());
+
+	// Update the legend items list
+    updateLegendItemsList();
 }
 
 void CartesianPlotLegendDock::loadConfigFromTemplate(KConfig& config) {
